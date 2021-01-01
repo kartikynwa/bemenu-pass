@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-# rofi-pass
+# bemenu-pass
 # (c) 2015 Rasmus Steinke <rasi@xssn.at>
 basecommand="$0"
 
 # set default settings
-_rofi () {
-	rofi -no-auto-select -i "$@"
+_bemenu () {
+	bemenu -l 10 -i "$@"
 }
 
 _pwgen () {
@@ -29,14 +29,13 @@ OTPmethod_field='otp_method'
 default_autotype="user :tab pass"
 delay=2
 wait=0.2
-xdotool_delay=12
 default_do='menu' # menu, copyPass, typeUser, typePass, copyUser, copyUrl, viewEntry, typeMenu, actionMenu, copyMenu, openUrl
 auto_enter='false'
 notify='false'
 help_color=""
 clip=primary
 clip_clear=45
-default_user="${ROFI_PASS_DEFAULT_USER-$(whoami)}"
+default_user="${BEMENU_PASS_DEFAULT_USER-$(whoami)}"
 default_user2=john_doe
 password_length=12
 fix_layout=false
@@ -89,7 +88,7 @@ doClip () {
 }
 
 checkIfPass () {
-	printf '%s\n' "${root}: $selected_password" >| "$cache_dir/rofi-pass/last_used"
+	printf '%s\n' "${root}: $selected_password" >| "$cache_dir/bemenu-pass/last_used"
 }
 
 
@@ -97,23 +96,23 @@ autopass () {
 	x_repeat_enabled=$(xset q | awk '/auto repeat:/ {print $3}')
 	xset r off
 
-	rm -f "$cache_dir/rofi-pass/last_used"
-	printf '%s\n' "${root}: $selected_password" > "$cache_dir/rofi-pass/last_used"
+	rm -f "$cache_dir/bemenu-pass/last_used"
+	printf '%s\n' "${root}: $selected_password" > "$cache_dir/bemenu-pass/last_used"
 	for word in ${stuff["$AUTOTYPE_field"]}; do
 		case "$word" in
-			":tab") xdotool key Tab;;
-			":space") xdotool key space;;
+			":tab") sleep "${wait}"; wtype -k tab;;
+			":space") sleep "${wait}"; wtype -k space;;
 			":delay") sleep "${delay}";;
-			":enter") xdotool key Return;;
-			":otp") printf '%s' "$(generateOTP)" | xdotool type --delay ${xdotool_delay} --clearmodifiers --file -;;
-			"pass") printf '%s' "${password}" | xdotool type --delay ${xdotool_delay} --clearmodifiers --file -;;
-			"path") printf '%s' "${selected_password}" | rev | cut -d'/' -f1 | rev | xdotool type --clearmodifiers --file -;;
-			*) printf '%s' "${stuff[${word}]}" | xdotool type --delay ${xdotool_delay} --clearmodifiers --file -;;
+			":enter") sleep "${wait}"; wtype -k return;;
+			":otp") sleep "${wait}"; wtype -- "$(generateOTP)";;
+			"pass") sleep "${wait}"; wtype -- "${password}";;
+			"path") sleep "${wait}"; wtype -- "${selected_password}";;
+			*) sleep "${wait}"; wtype -- "${stuff[${word}]}";;
 		esac
 	done
 
 	if [[ ${auto_enter} == "true" ]]; then
-		xdotool key Return
+		sleep "${wait}"; wtype -k return
 	fi
 
 	xset r "$x_repeat_enabled"
@@ -125,7 +124,7 @@ generateQrCode() {
 	has_qrencode
 
 	if [[ $? -eq "1" ]]; then
-		printf '%s\n' "qrencode not found" | _rofi -dmenu
+		printf '%s\n' "qrencode not found" | _bemenu
 		exit_code=$?
 		if [[ $exit_code -eq "1" ]]; then
 			exit
@@ -137,7 +136,7 @@ generateQrCode() {
 	checkIfPass
 	pass "$selected_password" | head -n 1 | qrencode -d 300 -v 8 -l H -o - | _image_viewer
 	if [[ $? -eq "1" ]]; then
-		printf '%s\n' "" | _rofi -dmenu -mesg "Image viewer not defined or cannot read from pipe"
+		printf '%s\n' "" | _bemenu -mesg "Image viewer not defined or cannot read from pipe"
 		exit_value=$?
 		if [[ $exit_value -eq "1" ]]; then
 			exit
@@ -160,7 +159,7 @@ typeUser () {
 	x_repeat_enabled=$(xset q | awk '/auto repeat:/ {print $3}')
 	xset r off
 
-	printf '%s' "${stuff[${USERNAME_field}]}" | xdotool type --delay ${xdotool_delay} --clearmodifiers --file -
+	wtype -- "${stuff[${USERNAME_field}]}"
 
 	xset r "$x_repeat_enabled"
 	unset x_repeat_enabled
@@ -174,17 +173,17 @@ typePass () {
 	x_repeat_enabled=$(xset q | awk '/auto repeat:/ {print $3}')
 	xset r off
 
-	printf '%s' "${password}" | xdotool type --delay ${xdotool_delay} --clearmodifiers --file -
+	wtype -- "${password}"
 
 	if [[ $notify == "true" ]]; then
 		if [[ "${stuff[notify]}" == "false" ]]; then
 			:
 		else
-			notify-send "rofi-pass" "finished typing password";
+			notify-send "bemenu-pass" "finished typing password";
 		fi
 	elif [[ $notify == "false" ]]; then
 		if [[ "${stuff[notify]}" == "true" ]]; then
-			notify-send "rofi-pass" "finished typing password";
+			notify-send "bemenu-pass" "finished typing password";
 		else
 			:
 		fi
@@ -207,7 +206,7 @@ typeField () {
 		*) to_type="${stuff[${typefield}]}" ;;
 	esac
 
-	printf '%s' "$to_type" | xdotool type --delay ${xdotool_delay} --clearmodifiers --file -
+	wtype -- "$to_type"
 
 	xset r "$x_repeat_enabled"
 	unset x_repeat_enabled
@@ -253,11 +252,11 @@ copyPass () {
 	checkIfPass
 	printf '%s' "$password" | doClip
 	if [[ $notify == "true" ]]; then
-		notify-send "rofi-pass" "Copied Password\\nClearing in $clip_clear seconds"
+		notify-send "bemenu-pass" "Copied Password\\nClearing in $clip_clear seconds"
 	fi
 
 	if [[ $notify == "true" ]]; then
-		(sleep $clip_clear; printf '%s' "" | xclip; printf '%s' "" | xclip -selection clipboard | notify-send "rofi-pass" "Clipboard cleared") &
+		(sleep $clip_clear; printf '%s' "" | xclip; printf '%s' "" | xclip -selection clipboard | notify-send "bemenu-pass" "Clipboard cleared") &
 	elif [[ $notify == "false" ]]; then
 		(sleep $clip_clear; printf '%s' "" | xclip; printf '%s' "" | xclip -selection clipboard) &
 	fi
@@ -274,7 +273,7 @@ generatePass () {
 		"No"
 	)
 
-	askGenMenu=$(printf '%s\n' "${askmenu_content[@]}" | _rofi -dmenu -p "Generate new Password for ${selected_password}? > ")
+	askGenMenu=$(printf '%s\n' "${askmenu_content[@]}" | _bemenu -p "Generate new Password for ${selected_password}? > ")
 	askgen_exit=$?
 
 	if [[ $askgen_exit -eq 1 ]]; then
@@ -294,7 +293,7 @@ generatePass () {
 		"2  No"
 	)
 
-	symbols=$(printf '%s\n' "${symbols_content[@]}" | _rofi -dmenu -p "Use Symbols? > ")
+	symbols=$(printf '%s\n' "${symbols_content[@]}" | _bemenu -p "Use Symbols? > ")
 	symbols_val=$?
 
 	if [[ $symbols_val -eq 1 ]]; then
@@ -309,7 +308,7 @@ generatePass () {
 	fi
 
 	HELP="<span color='$help_color'>Enter Number or hit Enter to use default length</span>"
-	length=$(printf '%s' "" | _rofi -dmenu -mesg "${HELP}" -p "Password length? (Default: ${password_length}) > ")
+	length=$(printf '%s' "" | _bemenu -mesg "${HELP}" -p "Password length? (Default: ${password_length}) > ")
 	length_exit=$?
 
 	if [[ $length_exit -eq 1 ]]; then
@@ -326,62 +325,36 @@ generatePass () {
 mainMenu () {
 	if [[ $1 == "--bmarks" ]]; then
 		selected_password="$(list_passwords 2>/dev/null \
-			| _rofi -mesg "Bookmarks Mode. ${switch} to switch" \
-			-dmenu \
-			-kb-custom-10 "${switch}" \
-			-select "$entry" \
-			-p "rofi-pass > ")"
+			| _bemenu -p "bemenu-pass > ")"
 
-		rofi_exit=$?
+		bemenu_exit=$?
 
-		if [[ $rofi_exit -eq 1 ]]; then
+		if [[ $bemenu_exit -eq 1 ]]; then
 			exit
-		elif [[ $rofi_exit -eq 19 ]]; then
+		elif [[ $bemenu_exit -eq 19 ]]; then
 			${basecommand}
-		elif [[ $rofi_exit -eq 0 ]]; then
+		elif [[ $bemenu_exit -eq 0 ]]; then
 			openURL
 		fi
 	else
 		unset selected_password
 
-		args=( -dmenu
-			-kb-custom-1 "${autotype}"
-			-kb-custom-2 "${type_user}"
-			-kb-custom-3 "${type_pass}"
-			-kb-custom-4 "${open_url}"
-			-kb-custom-5 "${copy_name}"
-			-kb-custom-6 "${copy_pass}"
-			-kb-custom-7 "${show}"
-			-kb-custom-8 "${copy_url}"
-			-kb-custom-9 "${type_menu}"
-			-kb-custom-10 "${previous_root}"
-			-kb-custom-11 "${next_root}"
-			-kb-custom-14 "${action_menu}"
-			-kb-custom-15 "${copy_menu}"
-			-kb-custom-16 "${help}"
-			-kb-custom-17 "${switch}"
-			-kb-custom-18 "${insert_pass}"
-			-kb-custom-19 "${qrcode}"
-		)
-		args+=( -kb-mode-previous ""    # These keyboard shortcut options are needed, because
-		-kb-mode-next ""            # Shift+<Left|Right> are otherwise taken by rofi.
-		-select "$entry"
-		-p "> "	)
+		args+=( -p "> " )
 
 		if [[ ${#roots[@]} -gt "1" || $custom_root == "true" ]]; then
 			args+=(-mesg "PW Store: ${root}")
 		fi
 
-		selected_password="$(list_passwords 2>/dev/null | _rofi "${args[@]}")"
+		selected_password="$(list_passwords 2>/dev/null | _bemenu "${args[@]}")"
 
-		rofi_exit=$?
-		if [[ $rofi_exit -eq 1 ]]; then
+		bemenu_exit=$?
+		if [[ $bemenu_exit -eq 1 ]]; then
 			exit
 		fi
 
 		# Actions based on exit code, which do not need the entry.
 		# The exit code for -kb-custom-X is X+9.
-		case "${rofi_exit}" in
+		case "${bemenu_exit}" in
 			19) roots_index=$(( (roots_index-1+roots_length) % roots_length)); root=${roots[$roots_index]}; mainMenu; return;;
 			20) roots_index=$(( (roots_index+1) % roots_length)); root=${roots[$roots_index]}; mainMenu; return;;
 			25) helpMenu; return;;
@@ -446,11 +419,11 @@ mainMenu () {
 
 	# actions based on keypresses
 	# The exit code for -kb-custom-X is X+9.
-	case "${rofi_exit}" in
+	case "${bemenu_exit}" in
 		0) typeMenu;;
-		10) sleep $wait; autopass;;
-		11) sleep $wait; typeUser;;
-		12) sleep $wait; typePass;;
+		10) autopass;;
+		11) typeUser;;
+		12) typePass;;
 		13) openURL;;
 		14) copyUser;;
 		15) copyPass;;
@@ -477,7 +450,7 @@ clearUp () {
 }
 
 helpMenu () {
-	_rofi -dmenu -mesg "Hint: All hotkeys are configurable in config file" -p "Help > " <<- EOM
+	_bemenu -mesg "Hint: All hotkeys are configurable in config file" -p "Help > " <<- EOM
 	${autotype}: Autotype
 	${type_user}: Type Username
 	${type_pass}: Type Password
@@ -513,20 +486,20 @@ typeMenu () {
 			checkIfPass
 			local -a keys=("${!stuff[@]}")
 			keys=("${keys[@]/$AUTOTYPE_field}")
-			typefield=$({ printf '%s' "${AUTOTYPE_field}" ; printf '%s\n' "${keys[@]}" | sort; } | _rofi -dmenu  -p "Choose Field to type > ")
+			typefield=$({ printf '%s' "${AUTOTYPE_field}" ; printf '%s\n' "${keys[@]}" | sort; } | _bemenu  -p "Choose Field to type > ")
 			typefield_exit=$?
 			if [[ $typefield_exit -eq 1 ]]; then
 				exit
 			fi
 			case "$typefield" in
 				'') exit;;
-				'pass') sleep $wait; typePass;;
-				"${AUTOTYPE_field}") sleep $wait; autopass;;
-				*) sleep $wait; typeField
+				'pass') typePass;;
+				"${AUTOTYPE_field}") autopass;;
+				*) typeField
 			esac
 			clearUp
 		elif [[ $default_do == "${AUTOTYPE_field}" ]]; then
-			sleep $wait; autopass
+			autopass
 		else
 			${default_do}
 		fi
@@ -535,7 +508,7 @@ typeMenu () {
 
 copyMenu () {
 	checkIfPass
-	copyfield=$(printf '%s\n' "${!stuff[@]}" | sort | _rofi -dmenu  -p "Choose Field to copy > ")
+	copyfield=$(printf '%s\n' "${!stuff[@]}" | sort | _bemenu  -p "Choose Field to copy > ")
 	val=$?
 	if [[ $val -eq 1 ]]; then
 		exit;
@@ -559,7 +532,7 @@ actionMenu () {
 		"5 Generate New Password"
 	)
 
-	action=$(printf '%s\n' "${action_content[@]}" | _rofi -dmenu -p "Choose Action > ")
+	action=$(printf '%s\n' "${action_content[@]}" | _bemenu -p "Choose Action > ")
 	if [[ ${action} == "1 Move Password File" ]]; then
 		manageEntry move;
 	elif [[ ${action} == "3 Delete Password File" ]]; then
@@ -605,14 +578,14 @@ showEntry () {
 		"${pass_content}"
 	)
 
-	bla=$(printf '%s\n' "${bla_content[@]}" | _rofi -dmenu -mesg "Enter: Copy entry to clipboard" -p "> ")
-	rofi_exit=$?
+	bla=$(printf '%s\n' "${bla_content[@]}" | _bemenu -mesg "Enter: Copy entry to clipboard" -p "> ")
+	bemenu_exit=$?
 
 	word=$(printf '%s' "$bla" | gawk -F': ' '{print $1}')
 
-	if [[ ${rofi_exit} -eq 1 ]]; then
+	if [[ ${bemenu_exit} -eq 1 ]]; then
 		exit
-	elif [[ ${rofi_exit} -eq 0 ]]; then
+	elif [[ ${bemenu_exit} -eq 0 ]]; then
 		if [[ ${bla} == "< Return" ]]; then
 			mainMenu
 		else
@@ -622,10 +595,10 @@ showEntry () {
 				printf '%s' "${stuff[${word}]}" | doClip
 			fi
 			if [[ $notify == "true" ]]; then
-				notify-send "rofi-pass" "Copied Password\\nClearing in $clip_clear seconds"
+				notify-send "bemenu-pass" "Copied Password\\nClearing in $clip_clear seconds"
 			fi
 			if [[ $notify == "true" ]]; then
-				(sleep $clip_clear; printf '%s' "" | xclip; printf '%s' "" | xclip -selection clipboard | notify-send "rofi-pass" "Clipboard cleared") &
+				(sleep $clip_clear; printf '%s' "" | xclip; printf '%s' "" | xclip -selection clipboard | notify-send "bemenu-pass" "Clipboard cleared") &
 			elif [[ $notify == "false" ]]; 	then
 				(sleep $clip_clear; printf '%s' "" | xclip; printf '%s' "" | xclip -selection clipboard) &
 			fi
@@ -648,7 +621,7 @@ manageEntry () {
 	elif [[ $1 == "move" ]]; then
 		cd "${root}" || exit
 		group_array=(*/)
-		group=$(printf '%s\n' "${group_array[@]%/}" | _rofi -dmenu -p "Choose Group > ")
+		group=$(printf '%s\n' "${group_array[@]%/}" | _bemenu -p "Choose Group > ")
 		if [[ $group == "" ]]; then
 			exit
 		fi
@@ -657,11 +630,11 @@ manageEntry () {
 	elif [[ $1 == "copy" ]]; then
 		cd "${root}" || exit
 		group_array=(*/)
-		group=$(printf '%s\n' "${group_array[@]%/}" | _rofi -dmenu -p "Choose Group > ")
+		group=$(printf '%s\n' "${group_array[@]%/}" | _bemenu -p "Choose Group > ")
 		if [[ $group == "" ]]; then
 			exit
 		else
-			new_name="$(listgpg | _rofi -dmenu -format 'f' -mesg "Copying to same Group. Please enter a name for the new entry" -p "> ")"
+			new_name="$(listgpg | _bemenu -format 'f' -mesg "Copying to same Group. Please enter a name for the new entry" -p "> ")"
 		fi
 		PASSWORD_STORE_DIR="${root}" pass cp "$selected_password" "${group}/${new_name}"
 		mainMenu
@@ -670,7 +643,7 @@ manageEntry () {
 		ask_content=("Yes"
 			"No"
 		)
-		ask=$(printf '%s\n' "${ask_content[@]}" | _rofi -mesg "${HELP}" -dmenu -p "Are You Sure? > ")
+		ask=$(printf '%s\n' "${ask_content[@]}" | _bemenu -mesg "${HELP}" -p "Are You Sure? > ")
 		if [[ "$ask" == "Yes" ]]; then
 			PASSWORD_STORE_DIR="${root}" pass rm --force "${selected_password}"
 		elif [[ "$ask" == "No" ]]; then
@@ -698,7 +671,7 @@ insertPass () {
 	cd "${root}" || exit
 	group_array=(*/)
 	grouplist=$(printf '%s\n' "${group_array[@]%/}")
-	name="$(listgpg | _rofi -dmenu -format 'f' -filter "${domain_name}" -mesg "${help_content}" -p "> ")"
+	name="$(listgpg | _bemenu -format 'f' -filter "${domain_name}" -mesg "${help_content}" -p "> ")"
 	val=$?
 
 	if [[ $val -eq 1 ]]; then
@@ -710,7 +683,7 @@ insertPass () {
 		"${default_user}"
 	)
 
-	user=$(printf '%s\n' "${user_content[@]}" | _rofi -dmenu -mesg "Chose Username or type" -p "> ")
+	user=$(printf '%s\n' "${user_content[@]}" | _bemenu -mesg "Chose Username or type" -p "> ")
 	val=$?
 
 	if [[ $val -eq 1 ]]; then
@@ -722,14 +695,14 @@ insertPass () {
 		"${grouplist}"
 	)
 
-	group=$(printf '%s\n' "${group_content[@]}" | _rofi -dmenu -p "Choose Group > ")
+	group=$(printf '%s\n' "${group_content[@]}" | _bemenu -p "Choose Group > ")
 	val=$?
 
 	if [[ $val -eq 1 ]]; then
 		exit
 	fi
 
-	pw=$(printf '%s' "Generate" | _rofi -dmenu -password -p "Password > " -mesg "Type Password or hit Enter to generate one")
+	pw=$(printf '%s' "Generate" | _bemenu -p "Password > " -mesg "Type Password or hit Enter to generate one")
 
 	if [[ $pw == "Generate" ]]; then
 		pw=$(_pwgen "${password_length}")
@@ -776,7 +749,7 @@ insertPass () {
 help_msg () {
 	cat <<'EOF'
 	Usage:
-	rofi-pass [command]
+	bemenu-pass [command]
 
 	Commands:
 	--insert         insert new entry to password store
@@ -785,18 +758,18 @@ help_msg () {
 	--show-last      show details of last used Entry
 	--bmarks         start in bookmarks mode
 
-	rofi-pass version 1.5.3
+	bemenu-pass version 1.5.3
 EOF
 }
 
 get_config_file () {
-	configs=("$ROFI_PASS_CONFIG"
-		"$config_dir/rofi-pass/config"
-		"/etc/rofi-pass.conf")
+	configs=("$BEMENU_PASS_CONFIG"
+		"$config_dir/bemenu-pass/config"
+		"/etc/bemenu-pass.conf")
 
 	# return the first config file with a valid path
 	for config in "${configs[@]}"; do
-		# '-n' is needed in case ROFI_PASS_CONFIG is not set
+		# '-n' is needed in case BEMENU_PASS_CONFIG is not set
 		if [[ -n "${config}" && -f "${config}" ]]; then
 			printf "%s" "$config"
 			return
@@ -810,8 +783,8 @@ main () {
 	[[ -n "$config_file" ]] && source "$config_file"
 
 	# create tmp dir
-	if [[ ! -d "$cache_dir/rofi-pass" ]]; then
-		mkdir -p "$cache_dir/rofi-pass"
+	if [[ ! -d "$cache_dir/bemenu-pass" ]]; then
+		mkdir -p "$cache_dir/bemenu-pass"
 	fi
 
 	# fix keyboard layout if enabled in config
@@ -830,8 +803,8 @@ main () {
 	fi
 
 	# check if alternative root directory was given on commandline
-	if [[ -r "$cache_dir/rofi-pass/last_used" ]] && [[ $1 == "--last-used" || $1 == "--show-last" ]]; then
-		roots=("$(awk -F ': ' '{ print $1 }' "$cache_dir/rofi-pass/last_used")")
+	if [[ -r "$cache_dir/bemenu-pass/last_used" ]] && [[ $1 == "--last-used" || $1 == "--show-last" ]]; then
+		roots=("$(awk -F ': ' '{ print $1 }' "$cache_dir/bemenu-pass/last_used")")
 	elif [[ -n "$2" && "$1" == "--root" ]]; then
 		custom_root=true; IFS=: read -r -a roots <<< "$2"
 	elif [[ -n $root ]]; then
@@ -856,14 +829,14 @@ main () {
 			help_msg
 			;;
 		--last-used)
-			if [[ -r "$cache_dir/rofi-pass/last_used" ]]; then
-				entry="$(awk -F ': ' '{ print $2 }' "$cache_dir/rofi-pass/last_used")"
+			if [[ -r "$cache_dir/bemenu-pass/last_used" ]]; then
+				entry="$(awk -F ': ' '{ print $2 }' "$cache_dir/bemenu-pass/last_used")"
 			fi
 			mainMenu
 			;;
 		--show-last)
-			if [[ -r "$cache_dir/rofi-pass/last_used" ]]; then
-				selected_password="$(awk -F ': ' '{ print $2 }' "$cache_dir/rofi-pass/last_used")" viewEntry
+			if [[ -r "$cache_dir/bemenu-pass/last_used" ]]; then
+				selected_password="$(awk -F ': ' '{ print $2 }' "$cache_dir/bemenu-pass/last_used")" viewEntry
 			else
 				mainMenu
 			fi
